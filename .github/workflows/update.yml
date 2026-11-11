@@ -1,0 +1,37 @@
+name: 同步 v2term
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-v2term
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: 下载最新稳定版公式
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo synrise25/v2term --pattern v2term.rb --pattern checksums.txt --dir "$RUNNER_TEMP/formula"
+          (cd "$RUNNER_TEMP/formula" && sha256sum --check --ignore-missing checksums.txt)
+          mkdir -p Formula
+          cp "$RUNNER_TEMP/formula/v2term.rb" Formula/v2term.rb
+          ruby -c Formula/v2term.rb
+      - name: 保存更新
+        run: |
+          if git diff --quiet -- Formula/v2term.rb; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Formula/v2term.rb
+          git commit -m 'chore: 同步 v2term 发行版'
+          git push
